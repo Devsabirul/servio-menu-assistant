@@ -875,7 +875,7 @@ $("menuFile").addEventListener("change", async event => {
 
         const formData = new FormData();
 
-        formData.append("restaurant_name", restaurant_Name);
+        formData.append("restaurant_name", restaurantName);
         formData.append("file", file);
         const response = await fetch(
             `${API_BASE_URL}/api/restaurants/upload`,
