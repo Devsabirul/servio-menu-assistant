@@ -1,4 +1,3 @@
-
 import { auth, db, onAuthStateChanged, logout } from "../assets/auth.js";
 
 import {
@@ -19,6 +18,7 @@ let menuLimit = 5;
 let currentPlan = "standard";
 let restaurantData = {};
 let restaurants = [];
+let menus = [];
 
 const plans = {
     basic: {
@@ -40,7 +40,7 @@ const plans = {
 
 
 // ========================================
-// AUTHENTICATION AND DASHBOARD INITIALIZE
+// AUTHENTICATION
 // ========================================
 
 onAuthStateChanged(auth, async currentUser => {
@@ -65,16 +65,18 @@ onAuthStateChanged(auth, async currentUser => {
 
         $("authLoading").innerHTML = `
             <p class="text-danger">
-                Could not load account. Check Firestore configuration and security rules.
+                Could not load account.
+                Check Firestore configuration and security rules.
             </p>
         `;
+
     }
 
 });
 
 
 // ========================================
-// LOAD DASHBOARD DATA FROM FIRESTORE
+// LOAD DASHBOARD
 // ========================================
 
 async function loadDashboard() {
@@ -95,20 +97,15 @@ async function loadDashboard() {
 
     menuLimit = selectedPlan.limit;
 
-    const menus = Array.isArray(restaurantData.menus)
+    menus = Array.isArray(restaurantData.menus)
         ? restaurantData.menus
         : [];
 
-    menuCount = menus.length;
-
-    // Load multiple restaurants
     restaurants = Array.isArray(restaurantData.restaurants)
         ? restaurantData.restaurants
         : [];
 
-    // Legacy data support:
-    // If an old account has restaurantId but no restaurants array,
-    // show its existing restaurant QR.
+    // Legacy data support
     if (restaurants.length === 0 && restaurantId) {
 
         restaurants = [{
@@ -125,6 +122,9 @@ async function loadDashboard() {
 
     }
 
+    // Use the larger count to avoid undercounting
+    menuCount = Math.max(menus.length, restaurants.length);
+
     const displayName =
         user.displayName ||
         restaurantData.name ||
@@ -139,6 +139,7 @@ async function loadDashboard() {
     $("welcomeName").textContent =
         displayName.split(" ")[0];
 
+    // Profile restaurant name remains independent
     $("restaurantName").value =
         restaurantData.restaurantName || "";
 
@@ -270,6 +271,7 @@ function updatePlan() {
     } else {
 
         $("overviewPrice").textContent = "Price not configured";
+
         $("billingPrice").textContent = "Price not configured";
 
     }
@@ -286,13 +288,17 @@ function updateLanguages() {
     const languages = [];
 
     if ($("langEnglish").checked) languages.push("EN");
+
     if ($("langItalian").checked) languages.push("IT");
+
     if ($("langBangla").checked) languages.push("বাংলা");
 
     $("languageCount").textContent = languages.length;
 
     $("languageSummary").textContent =
-        languages.length ? languages.join(" · ") : "No languages selected";
+        languages.length
+            ? languages.join(" · ")
+            : "No languages selected";
 
 }
 
@@ -311,8 +317,7 @@ function updateSetupProgress() {
 
     const menuComplete = menuCount > 0;
 
-    const qrComplete =
-        restaurants.length > 0 || Boolean(restaurantId);
+    const qrComplete = restaurants.length > 0;
 
     const completed = 1 +
         Number(profileComplete) +
@@ -328,45 +333,51 @@ function updateSetupProgress() {
         "✓ Account created";
 
     $("setupProfile").textContent =
-        profileComplete ? "✓ Restaurant details" : "○ Restaurant details";
+        profileComplete
+            ? "✓ Restaurant details"
+            : "○ Restaurant details";
 
     $("profileSetupStatus").textContent =
         profileComplete ? "Done" : "Pending";
 
     $("setupMenu").textContent =
-        menuComplete ? "✓ Menu uploaded" : "○ Menu uploaded";
+        menuComplete
+            ? "✓ Menu uploaded"
+            : "○ Menu uploaded";
 
     $("menuSetupStatus").textContent =
         menuComplete ? "Done" : "Pending";
 
     $("setupQr").textContent =
-        qrComplete ? "✓ QR code generated" : "○ QR code generated";
+        qrComplete
+            ? "✓ QR code generated"
+            : "○ QR code generated";
 
 }
 
 
 // ========================================
-// RENDER MENU LIST
+// RENDER MENUS
 // ========================================
 
-function renderMenus(menus = []) {
+function renderMenus(menuList = []) {
 
     const container = $("menusList");
 
     container.innerHTML = "";
 
-    if (!menus.length) {
+    if (!menuList.length) {
 
         container.innerHTML = `
             <p class="text-secondary small mb-0">
-                No menus uploaded yet.
+                No restaurants uploaded yet.
             </p>
         `;
 
         return;
     }
 
-    menus.forEach(menu => {
+    menuList.forEach(menu => {
 
         const row = document.createElement("div");
 
@@ -399,10 +410,9 @@ function renderMenus(menus = []) {
 
         if (menu.uploadedAt) {
 
-            const uploadDate = new Date(menu.uploadedAt);
-
             date.textContent =
-                "Uploaded " + uploadDate.toLocaleString();
+                "Uploaded " +
+                new Date(menu.uploadedAt).toLocaleString();
 
         } else {
 
@@ -433,7 +443,7 @@ function renderMenus(menus = []) {
 
 
 // ========================================
-// GENERATE CHAT URL
+// GENERATE CUSTOMER CHAT URL
 // ========================================
 
 function getRestaurantChatURL(restaurant) {
@@ -656,7 +666,9 @@ function showView(view) {
     if (!section) return;
 
     document.querySelectorAll(".view-section").forEach(item => {
+
         item.classList.add("d-none");
+
     });
 
     section.classList.remove("d-none");
@@ -689,6 +701,7 @@ function showView(view) {
 
 }
 
+
 document.addEventListener("click", event => {
 
     const link = event.target.closest("[data-view]");
@@ -707,15 +720,19 @@ document.addEventListener("click", event => {
 
 });
 
+
 if (location.hash) {
 
     const initialView = location.hash.substring(1);
 
     if ($("view-" + initialView)) {
+
         showView(initialView);
+
     }
 
 }
+
 
 $("menuToggle").addEventListener("click", () => {
 
@@ -737,8 +754,6 @@ async function signOutUser() {
         location.replace("../auth/login.html");
 
     } catch (error) {
-
-        console.error("Logout error:", error);
 
         alert("Could not log out. Try again.");
 
@@ -767,17 +782,23 @@ $("restaurantForm").addEventListener("submit", async event => {
 
         const profile = {
 
-            restaurantName: $("restaurantName").value.trim(),
+            restaurantName:
+                $("restaurantName").value.trim(),
 
-            restaurantEmail: $("restaurantEmail").value.trim(),
+            restaurantEmail:
+                $("restaurantEmail").value.trim(),
 
-            phone: $("restaurantPhone").value.trim(),
+            phone:
+                $("restaurantPhone").value.trim(),
 
-            website: $("restaurantWebsite").value.trim(),
+            website:
+                $("restaurantWebsite").value.trim(),
 
-            address: $("restaurantAddress").value.trim(),
+            address:
+                $("restaurantAddress").value.trim(),
 
-            description: $("restaurantDescription").value.trim(),
+            description:
+                $("restaurantDescription").value.trim(),
 
             updatedAt: serverTimestamp()
 
@@ -800,9 +821,10 @@ $("restaurantForm").addEventListener("submit", async event => {
 
     } catch (error) {
 
-        console.error("Profile save error:", error);
-
-        alert("Could not save restaurant profile. Check Firestore rules.");
+        alert(
+            "Could not save restaurant profile.\n\n" +
+            error.message
+        );
 
     } finally {
 
@@ -814,16 +836,32 @@ $("restaurantForm").addEventListener("submit", async event => {
 
 
 // ========================================
-// PDF UPLOAD
-// FASTAPI: POST /api/restaurants/upload
+// PDF UPLOAD BUTTON
 // ========================================
 
 $("chooseMenu").addEventListener("click", () => {
+
+    const restaurantName =
+        $("uploadRestaurantName").value.trim();
+
+    if (!restaurantName) {
+
+        alert("Please enter the restaurant name first.");
+
+        $("uploadRestaurantName").focus();
+
+        return;
+
+    }
 
     $("menuFile").click();
 
 });
 
+
+// ========================================
+// PDF UPLOAD
+// ========================================
 
 $("menuFile").addEventListener("change", async event => {
 
@@ -837,7 +875,7 @@ $("menuFile").addEventListener("change", async event => {
 
     try {
 
-        // Restaurant name is entered separately for every upload.
+        // Get separate restaurant name for this PDF
         const restaurantName =
             $("uploadRestaurantName").value.trim();
 
@@ -847,21 +885,29 @@ $("menuFile").addEventListener("change", async event => {
 
         }
 
-        if (file.type !== "application/pdf") {
+        // Validate PDF
+        if (
+            file.type !== "application/pdf" &&
+            !file.name.toLowerCase().endsWith(".pdf")
+        ) {
 
             throw new Error("Please select a PDF file.");
 
         }
 
+        // Validate file size
         if (file.size > 15 * 1024 * 1024) {
 
             throw new Error("Maximum file size is 15 MB.");
 
         }
 
+        // Validate package
         if (menuCount >= menuLimit) {
 
-            throw new Error("Your package upload allowance has been reached.");
+            throw new Error(
+                "Your package upload allowance has been reached."
+            );
 
         }
 
@@ -871,12 +917,18 @@ $("menuFile").addEventListener("change", async event => {
             "small text-primary mt-3";
 
         feedback.textContent =
-            "Uploading PDF and creating vectors. Please wait...";
+            `Uploading ${restaurantName} menu. Please wait...`;
+
+        // =================================
+        // SEND PDF TO BACKEND
+        // =================================
 
         const formData = new FormData();
 
         formData.append("restaurant_name", restaurantName);
+
         formData.append("file", file);
+
         const response = await fetch(
             `${API_BASE_URL}/api/restaurants/upload`,
             {
@@ -903,10 +955,13 @@ $("menuFile").addEventListener("change", async event => {
 
         } catch {
 
-            throw new Error("Backend returned an invalid JSON response.");
+            throw new Error(
+                "Backend returned an invalid JSON response."
+            );
 
         }
 
+        // Get restaurant ID from API response
         const newRestaurantId =
             result?.restaurant?.restaurant_id ||
             result?.restaurant_id ||
@@ -922,7 +977,10 @@ $("menuFile").addEventListener("change", async event => {
 
         }
 
-        // New restaurant record
+        // =================================
+        // CREATE RESTAURANT RECORD
+        // =================================
+
         const restaurantRecord = {
 
             restaurantName: restaurantName,
@@ -931,13 +989,18 @@ $("menuFile").addEventListener("change", async event => {
 
             fileName: file.name,
 
+            chatUrl: `/api/chat/${newRestaurantId}`,
+
             status: "Processed",
 
             uploadedAt: new Date().toISOString()
 
         };
 
-        // Save all restaurants
+        // =================================
+        // UPDATE RESTAURANT ARRAY
+        // =================================
+
         const updatedRestaurants = [
 
             ...restaurants,
@@ -946,16 +1009,21 @@ $("menuFile").addEventListener("change", async event => {
 
         ];
 
-        // Save all uploaded menus
+        // =================================
+        // UPDATE MENU ARRAY
+        // =================================
+
         const updatedMenus = [
 
-            ...(Array.isArray(restaurantData.menus)
-                ? restaurantData.menus
-                : []),
+            ...menus,
 
             restaurantRecord
 
         ];
+
+        // =================================
+        // SAVE TO FIREBASE
+        // =================================
 
         const updateData = {
 
@@ -963,7 +1031,7 @@ $("menuFile").addEventListener("change", async event => {
 
             menus: updatedMenus,
 
-            // Keep latest ID for compatibility with existing data
+            // Keep profile restaurant name unchanged
             restaurantId: newRestaurantId,
 
             menuUploadCount: updatedMenus.length,
@@ -978,8 +1046,13 @@ $("menuFile").addEventListener("change", async event => {
             { merge: true }
         );
 
-        // Update local state
+        // =================================
+        // UPDATE LOCAL DATA
+        // =================================
+
         restaurants = updatedRestaurants;
+
+        menus = updatedMenus;
 
         restaurantId = newRestaurantId;
 
@@ -993,33 +1066,46 @@ $("menuFile").addEventListener("change", async event => {
 
         menuCount = updatedMenus.length;
 
-        // Update dashboard
+        // =================================
+        // UPDATE DASHBOARD
+        // =================================
+
         updateUsage();
 
         updateSetupProgress();
 
-        renderMenus(updatedMenus);
+        renderMenus(menus);
 
         renderRestaurantQRCodes();
 
-        // Clear upload name after success
+        // Clear restaurant name after success
         $("uploadRestaurantName").value = "";
 
         feedback.className =
             "small text-success mt-3";
 
         feedback.textContent =
-            result.message || "Restaurant menu uploaded successfully.";
+            `${restaurantName} menu uploaded successfully!`;
+
+        alert(
+            "UPLOAD SUCCESSFUL!\n\n" +
+            "Restaurant: " + restaurantName +
+            "\nRestaurant ID: " + newRestaurantId +
+            "\n\nQR Code generated successfully."
+        );
 
     } catch (error) {
-
-        console.error("PDF upload error:", error);
 
         feedback.className =
             "small text-danger mt-3";
 
         feedback.textContent =
             error.message;
+
+        alert(
+            "UPLOAD FAILED!\n\n" +
+            error.message
+        );
 
     } finally {
 
@@ -1085,9 +1171,10 @@ $("settingsForm").addEventListener("submit", async event => {
 
     } catch (error) {
 
-        console.error("Settings save error:", error);
-
-        alert("Could not save AI settings. Check Firestore rules.");
+        alert(
+            "Could not save AI settings.\n\n" +
+            error.message
+        );
 
     } finally {
 
@@ -1099,7 +1186,7 @@ $("settingsForm").addEventListener("submit", async event => {
 
 
 // ========================================
-// UPDATE LANGUAGE COUNTER
+// LANGUAGE COUNTER
 // ========================================
 
 ["langEnglish", "langItalian", "langBangla"].forEach(id => {
@@ -1110,7 +1197,7 @@ $("settingsForm").addEventListener("submit", async event => {
 
 
 // ========================================
-// COPY AND DOWNLOAD RESTAURANT QR CODES
+// COPY AND DOWNLOAD QR CODES
 // ========================================
 
 $("restaurantsQrList").addEventListener("click", async event => {
@@ -1142,11 +1229,11 @@ $("restaurantsQrList").addEventListener("click", async event => {
 
             }, 1500);
 
-        } catch (error) {
+        } catch {
 
-            console.error("Copy error:", error);
-
-            alert("Copy failed. Please copy the URL manually.");
+            alert(
+                "Copy failed. Please copy the URL manually."
+            );
 
         }
 
