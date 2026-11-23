@@ -838,10 +838,10 @@ $("menuFile").addEventListener("change", async event => {
     try {
 
         // Restaurant name is entered separately for every upload.
-        const restaurant_Name =
+        const restaurantName =
             $("uploadRestaurantName").value.trim();
 
-        if (!restaurant_Name) {
+        if (!restaurantName) {
 
             throw new Error("Please enter the restaurant name.");
 
@@ -876,7 +876,6 @@ $("menuFile").addEventListener("change", async event => {
         const formData = new FormData();
 
         formData.append("restaurant_name", restaurant_Name);
-        alert(restaurant_Name)
         formData.append("file", file);
         const response = await fetch(
             `${API_BASE_URL}/api/restaurants/upload`,
