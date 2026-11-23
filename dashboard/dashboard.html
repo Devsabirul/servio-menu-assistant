@@ -1,0 +1,636 @@
+
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Dashboard — Servio</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="../assets/app.css" rel="stylesheet">
+    <link href="style.css" rel="stylesheet">
+</head>
+
+<body class="dashboard-body">
+
+    <div id="authLoading" class="loading">
+        <div class="spinner-border text-primary"></div>
+        <p class="mt-3 text-secondary">Checking your session…</p>
+    </div>
+
+    <div id="dashboardApp" class="d-none">
+
+        <!-- SIDEBAR -->
+        <aside class="sidebar" id="sidebar">
+
+            <a class="brand mb-4" href="../index.html">
+                <span class="brand-mark">
+                    <i class="bi bi-chat-heart-fill"></i>
+                </span>
+                servio<span class="brand-dot">.</span>
+            </a>
+
+            <small class="side-label">WORKSPACE</small>
+
+            <a class="side-link active" href="#overview" data-view="overview">
+                <i class="bi bi-grid"></i> Overview
+            </a>
+
+            <a class="side-link" href="#restaurant" data-view="restaurant">
+                <i class="bi bi-shop"></i> Restaurant profile
+            </a>
+
+            <a class="side-link" href="#menus" data-view="menus">
+                <i class="bi bi-file-earmark-pdf"></i> Menu manager
+            </a>
+
+            <a class="side-link" href="#qr" data-view="qr">
+                <i class="bi bi-qr-code"></i> QR & chat link
+            </a>
+
+            <a class="side-link" href="#conversations" data-view="conversations">
+                <i class="bi bi-chat-left-text"></i> Conversations
+            </a>
+
+            <a class="side-link" href="#settings" data-view="settings">
+                <i class="bi bi-sliders"></i> AI waiter settings
+            </a>
+
+            <a class="side-link" href="#billing" data-view="billing">
+                <i class="bi bi-credit-card"></i> Plan & payments
+            </a>
+
+            <div class="mt-auto">
+
+                <div class="help-box">
+                    <b>
+                        <i class="bi bi-headset me-2"></i>
+                        Need a hand?
+                    </b>
+
+                    <small>We're here to help you get started.</small>
+
+                    <a href="mailto:support@example.com">Contact support</a>
+                </div>
+
+                <button id="logoutBtn" class="side-link border-0 bg-transparent w-100 text-start">
+                    <i class="bi bi-box-arrow-left"></i> Log out
+                </button>
+
+            </div>
+        </aside>
+
+        <!-- MAIN -->
+        <main class="main-area">
+
+            <!-- TOPBAR -->
+            <header class="topbar">
+
+                <button class="btn btn-light d-lg-none" id="menuToggle">
+                    <i class="bi bi-list"></i>
+                </button>
+
+                <div>
+                    <small class="text-secondary">RESTAURANT WORKSPACE</small>
+                    <h5 class="mb-0 fw-bold" id="pageTitle">Overview</h5>
+                </div>
+
+                <div class="ms-auto d-flex align-items-center gap-3">
+
+                    <span class="status-pill">● AI waiter active</span>
+
+                    <span class="profile-avatar" id="profileInitial">S</span>
+
+                    <span class="small fw-semibold d-none d-sm-inline" id="profileName">
+                        Restaurant owner
+                    </span>
+
+                    <button id="logoutMenu" class="btn btn-sm btn-light">
+                        Log out
+                    </button>
+
+                </div>
+            </header>
+
+            <div class="content-wrap">
+
+                <!-- OVERVIEW -->
+                <section class="view-section" id="view-overview">
+
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+
+                        <div>
+                            <small class="eyebrow">YOUR RESTAURANT AT A GLANCE</small>
+
+                            <h2 class="fw-bold mt-2">
+                                Good to see you, <span id="welcomeName">there</span> 👋
+                            </h2>
+
+                            <p class="text-secondary">
+                                Here's what's happening with your AI waiter.
+                            </p>
+                        </div>
+
+                        <a class="btn btn-primary rounded-pill px-4" href="#menus" data-view="menus">
+                            <i class="bi bi-plus-lg me-2"></i>
+                            Upload a menu
+                        </a>
+
+                    </div>
+
+                    <!-- STATS -->
+                    <div class="row g-3">
+
+                        <div class="col-6 col-xl-3">
+                            <div class="stat">
+                                <span>
+                                    <i class="bi bi-chat-dots"></i>
+                                    Total conversations
+                                </span>
+
+                                <h3 id="totalConversations">—</h3>
+
+                                <small class="text-secondary">Analytics API not connected</small>
+                            </div>
+                        </div>
+
+                        <div class="col-6 col-xl-3">
+                            <div class="stat">
+                                <span>
+                                    <i class="bi bi-people"></i>
+                                    Guests helped
+                                </span>
+
+                                <h3 id="totalGuests">—</h3>
+
+                                <small class="text-secondary">Analytics API not connected</small>
+                            </div>
+                        </div>
+
+                        <div class="col-6 col-xl-3">
+                            <div class="stat">
+                                <span>
+                                    <i class="bi bi-file-pdf"></i>
+                                    Menus uploaded
+                                </span>
+
+                                <h3 id="menuStat">0 / 5</h3>
+
+                                <small class="text-secondary" id="planLabel">Standard package</small>
+                            </div>
+                        </div>
+
+                        <div class="col-6 col-xl-3">
+                            <div class="stat">
+                                <span>
+                                    <i class="bi bi-globe"></i>
+                                    Languages
+                                </span>
+
+                                <h3 id="languageCount">3</h3>
+
+                                <small class="text-secondary" id="languageSummary">EN · IT · বাংলা</small>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- ACTIVITY + SETUP -->
+                    <div class="row g-3 mt-1">
+
+                        <div class="col-lg-7">
+
+                            <div class="panel">
+
+                                <div class="d-flex justify-content-between">
+
+                                    <div>
+                                        <h5>Guest activity</h5>
+
+                                        <p class="text-secondary small">
+                                            Conversation analytics
+                                        </p>
+                                    </div>
+
+                                    <span class="badge text-bg-light">Coming soon</span>
+
+                                </div>
+
+                                <p class="text-secondary small mb-0">
+                                    Conversation analytics will appear here when the backend provides an analytics
+                                    endpoint.
+                                </p>
+
+                            </div>
+
+                        </div>
+
+                        <div class="col-lg-5">
+
+                            <div class="panel h-100">
+
+                                <h5>Quick setup</h5>
+
+                                <p class="text-secondary small">
+                                    Complete your restaurant setup
+                                </p>
+
+                                <div class="progress my-3">
+                                    <div class="progress-bar" id="setupProgress" style="width:0%"></div>
+                                </div>
+
+                                <p class="setup-line">
+                                    <span id="setupAccount">○ Account created</span>
+                                    <span>Done</span>
+                                </p>
+
+                                <p class="setup-line">
+                                    <span id="setupProfile">○ Restaurant details</span>
+                                    <span id="profileSetupStatus">Pending</span>
+                                </p>
+
+                                <p class="setup-line">
+                                    <span id="setupMenu">○ Menu uploaded</span>
+                                    <span id="menuSetupStatus">Pending</span>
+                                </p>
+
+                                <p class="setup-line">
+                                    <span id="setupQr">○ QR code generated</span>
+                                    <a href="#qr" data-view="qr">View</a>
+                                </p>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <!-- RECENT CONVERSATIONS + PACKAGE -->
+                    <div class="row g-3 mt-1">
+
+                        <div class="col-lg-7">
+
+                            <div class="panel">
+
+                                <h5>Recent conversations</h5>
+
+                                <p class="text-secondary small">
+                                    Guest questions and AI responses
+                                </p>
+
+                                <div id="recentConversations">
+                                    <p class="text-secondary small mb-0">
+                                        Conversation history API is not available yet.
+                                    </p>
+                                </div>
+
+                                <a href="#conversations" data-view="conversations" class="small fw-bold">
+                                    View all conversations →
+                                </a>
+
+                            </div>
+
+                        </div>
+
+                        <div class="col-lg-5">
+
+                            <div class="panel">
+
+                                <h5>Your package</h5>
+
+                                <p class="text-secondary small">One-time purchase</p>
+
+                                <span class="badge text-bg-primary" id="overviewPlan">
+                                    STANDARD
+                                </span>
+
+                                <h2 class="fw-bold mt-3" id="overviewPrice">
+                                    €70
+                                    <small class="fs-6 text-secondary">paid once</small>
+                                </h2>
+
+                                <div class="d-flex justify-content-between small">
+                                    <b id="usageText">0 of 5 used</b>
+                                    <span id="remainingText">5 remaining</span>
+                                </div>
+
+                                <div class="progress mt-2">
+                                    <div class="progress-bar" id="usageBar" style="width:0%"></div>
+                                </div>
+
+                                <a href="#billing" data-view="billing"
+                                    class="btn btn-outline-primary rounded-pill w-100 mt-4">
+                                    View package details
+                                </a>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </section>
+
+                <!-- RESTAURANT PROFILE -->
+                <section class="view-section d-none" id="view-restaurant">
+
+                    <div class="page-intro">
+                        <h2>Restaurant profile</h2>
+                        <p>Keep your restaurant information up to date.</p>
+                    </div>
+
+                    <div class="panel form-panel">
+
+                        <form id="restaurantForm">
+
+                            <div class="row g-3">
+
+                                <div class="col-md-6">
+                                    <label class="form-label">Restaurant name</label>
+                                    <input class="form-control" id="restaurantName" required
+                                        placeholder="Trattoria Bella">
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label">Contact email</label>
+                                    <input class="form-control" id="restaurantEmail" type="email">
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label">Phone number</label>
+                                    <input class="form-control" id="restaurantPhone">
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label">Website</label>
+                                    <input class="form-control" id="restaurantWebsite" placeholder="https://">
+                                </div>
+
+                                <div class="col-12">
+                                    <label class="form-label">Restaurant address</label>
+                                    <input class="form-control" id="restaurantAddress">
+                                </div>
+
+                                <div class="col-12">
+                                    <label class="form-label">About your restaurant</label>
+                                    <textarea class="form-control" id="restaurantDescription" rows="4"></textarea>
+                                </div>
+
+                            </div>
+
+                            <button class="btn btn-primary rounded-pill px-4 mt-4" type="submit">
+                                Save profile
+                            </button>
+
+                        </form>
+
+                    </div>
+
+                </section>
+
+                <!-- MENU MANAGER -->
+                <section class="view-section d-none" id="view-menus">
+
+                    <div class="page-intro d-flex justify-content-between flex-wrap gap-3">
+
+                        <div>
+                            <h2>Menu manager</h2>
+                            <p>Upload and manage menus for multiple restaurants.</p>
+                        </div>
+
+                        <span class="badge text-bg-light p-3" id="menuUsageHeader">
+                            0 / 5 uploads used
+                        </span>
+
+                    </div>
+
+                    <div class="panel upload-zone text-center">
+
+                        <i class="bi bi-file-earmark-arrow-up display-4 text-primary"></i>
+
+                        <h5 class="mt-3">Add a new restaurant menu</h5>
+
+                        <p class="text-secondary small">
+                            Enter restaurant name and upload its PDF menu.
+                            PDF format · Maximum 15 MB.
+                        </p>
+
+                        <div class="row justify-content-center mb-3">
+                            <div class="col-md-7">
+                                <input
+                                    type="text"
+                                    id="uploadRestaurantName"
+                                    class="form-control"
+                                    placeholder="Enter restaurant name"
+                                    required
+                                >
+                            </div>
+                        </div>
+
+                        <input type="file" id="menuFile" accept="application/pdf" hidden>
+
+                        <button class="btn btn-primary rounded-pill" id="chooseMenu" type="button">
+                            <i class="bi bi-plus-lg me-2"></i>
+                            Choose PDF
+                        </button>
+
+                        <p id="uploadFeedback" class="small text-secondary mt-3"></p>
+
+                    </div>
+
+                    <div class="panel mt-3">
+
+                        <h5>Restaurant menus</h5>
+
+                        <div id="menusList">
+                            <p class="text-secondary small">No restaurants uploaded yet.</p>
+                        </div>
+
+                    </div>
+
+                </section>
+
+                <!-- QR CODES -->
+                <section class="view-section d-none" id="view-qr">
+
+                    <div class="page-intro">
+                        <h2>Restaurant QR codes</h2>
+                        <p>Each restaurant has its own customer chat link and QR code.</p>
+                    </div>
+
+                    <div id="restaurantsQrList">
+
+                        <div class="panel text-center">
+                            <i class="bi bi-qr-code display-3 text-secondary"></i>
+
+                            <p class="text-secondary mt-3 mb-0">
+                                Upload a restaurant menu to generate its QR code.
+                            </p>
+                        </div>
+
+                    </div>
+
+                </section>
+
+                <!-- CONVERSATIONS -->
+                <section class="view-section d-none" id="view-conversations">
+
+                    <div class="page-intro">
+                        <h2>Conversations</h2>
+                        <p>Review recent guest questions and AI waiter responses.</p>
+                    </div>
+
+                    <div class="panel">
+
+                        <div id="conversationList">
+                            <p class="text-secondary small mb-0">
+                                Conversation history is not available because the current API does not provide a
+                                conversation history endpoint.
+                            </p>
+                        </div>
+
+                    </div>
+
+                </section>
+
+                <!-- SETTINGS -->
+                <section class="view-section d-none" id="view-settings">
+
+                    <div class="page-intro">
+                        <h2>AI waiter settings</h2>
+                        <p>Set the personality and language options for your guest-facing assistant.</p>
+                    </div>
+
+                    <div class="panel form-panel">
+
+                        <form id="settingsForm">
+
+                            <label class="form-label">Welcome message</label>
+
+                            <textarea class="form-control mb-4" id="welcomeMessage"
+                                rows="3">Ciao! Welcome to our restaurant. How can I help you today?</textarea>
+
+                            <label class="form-label">Available languages</label>
+
+                            <div class="d-flex flex-wrap gap-3 my-3">
+
+                                <label>
+                                    <input type="checkbox" id="langEnglish" checked>
+                                    English
+                                </label>
+
+                                <label>
+                                    <input type="checkbox" id="langItalian" checked>
+                                    Italiano
+                                </label>
+
+                                <label>
+                                    <input type="checkbox" id="langBangla" checked>
+                                    বাংলা
+                                </label>
+
+                            </div>
+
+                            <label class="form-label">Assistant tone</label>
+
+                            <select class="form-select mb-4" id="assistantTone">
+                                <option>Friendly and welcoming</option>
+                                <option>Professional</option>
+                                <option>Casual and cheerful</option>
+                            </select>
+
+                            <div class="form-check form-switch mb-4">
+
+                                <input class="form-check-input" type="checkbox" id="allergenNotice" checked>
+
+                                <label class="form-check-label" for="allergenNotice">
+                                    Remind guests to confirm serious allergies with staff
+                                </label>
+
+                            </div>
+
+                            <button class="btn btn-primary rounded-pill" type="submit">
+                                Save settings
+                            </button>
+
+                        </form>
+
+                    </div>
+
+                </section>
+
+                <!-- BILLING -->
+                <section class="view-section d-none" id="view-billing">
+
+                    <div class="page-intro">
+                        <h2>Plan & payments</h2>
+                        <p>See your package and menu allowance.</p>
+                    </div>
+
+                    <div class="row g-3">
+
+                        <div class="col-lg-5">
+
+                            <div class="panel">
+
+                                <span class="badge text-bg-primary">ACTIVE PACKAGE</span>
+
+                                <h2 class="fw-bold mt-3" id="billingPlanName">
+                                    Standard
+                                </h2>
+
+                                <h3 id="billingPrice">
+                                    €70
+                                    <small class="fs-6 text-secondary">one-time payment</small>
+                                </h3>
+
+                                <p class="text-secondary small" id="billingDescription">
+                                    Up to 5 menu uploads.
+                                </p>
+
+                                <p id="billingUsage">0 of 5 menu uploads used</p>
+
+                                <div class="progress">
+                                    <div class="progress-bar" id="billingBar" style="width:0%"></div>
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                        <div class="col-lg-7">
+
+                            <div class="panel">
+
+                                <h5>Payment history</h5>
+
+                                <div id="paymentHistory">
+                                    <p class="text-secondary small mb-0">
+                                        Payment history is not connected yet.
+                                    </p>
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </section>
+
+            </div>
+
+        </main>
+
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <script type="module" src="index.js"></script>
+
+</body>
+
+</html>
