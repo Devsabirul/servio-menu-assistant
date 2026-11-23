@@ -878,14 +878,46 @@ $("menuFile").addEventListener("change", async event => {
         formData.append("restaurant_name", restaurantName);
 
         formData.append("file", file);
+        let response;
 
-        const response = await fetch(
-            `${API_BASE_URL}/api/restaurants/upload`,
-            {
-                method: "POST",
-                body: formData
-            }
-        );
+try {
+    alert("Uploading PDF...\nAPI: " + API_BASE_URL);
+
+    response = await fetch(
+        `${API_BASE_URL}/api/restaurants/upload`,
+        {
+            method: "POST",
+            body: formData
+        }
+    );
+
+} catch (error) {
+    alert(
+        "FETCH ERROR!\n\n" +
+        "Name: " + error.name +
+        "\nMessage: " + error.message
+    );
+    throw error;
+}
+
+alert("HTTP STATUS: " + response.status);
+
+const responseText = await response.text();
+
+alert("API RESPONSE:\n" + responseText);
+
+if (!response.ok) {
+    throw new Error(responseText || "Upload failed");
+}
+
+let data;
+
+try {
+    data = JSON.parse(responseText);
+} catch {
+    alert("API response is not valid JSON!");
+    throw new Error("Invalid JSON response");
+}
 
         const responseText = await response.text();
 
