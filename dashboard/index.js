@@ -838,10 +838,10 @@ $("menuFile").addEventListener("change", async event => {
     try {
 
         // Restaurant name is entered separately for every upload.
-        const restaurantName =
+        const restaurant_Name =
             $("uploadRestaurantName").value.trim();
 
-        if (!restaurantName) {
+        if (!restaurant_Name) {
 
             throw new Error("Please enter the restaurant name.");
 
@@ -875,49 +875,16 @@ $("menuFile").addEventListener("change", async event => {
 
         const formData = new FormData();
 
-        formData.append("restaurant_name", restaurantName);
-
+        formData.append("restaurant_name", restaurant_Name);
+        alert(restaurant_Name)
         formData.append("file", file);
-        let response;
-
-try {
-    alert("Uploading PDF...\nAPI: " + API_BASE_URL);
-
-    response = await fetch(
-        `${API_BASE_URL}/api/restaurants/upload`,
-        {
-            method: "POST",
-            body: formData
-        }
-    );
-
-} catch (error) {
-    alert(
-        "FETCH ERROR!\n\n" +
-        "Name: " + error.name +
-        "\nMessage: " + error.message
-    );
-    throw error;
-}
-
-alert("HTTP STATUS: " + response.status);
-
-const responseText = await response.text();
-
-alert("API RESPONSE:\n" + responseText);
-
-if (!response.ok) {
-    throw new Error(responseText || "Upload failed");
-}
-
-let data;
-
-try {
-    data = JSON.parse(responseText);
-} catch {
-    alert("API response is not valid JSON!");
-    throw new Error("Invalid JSON response");
-}
+        const response = await fetch(
+            `${API_BASE_URL}/api/restaurants/upload`,
+            {
+                method: "POST",
+                body: formData
+            }
+        );
 
         const responseText = await response.text();
 
