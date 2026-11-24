@@ -6,6 +6,7 @@
 const params = new URLSearchParams(window.location.search);
 
 const restaurantId = params.get("restaurant_id");
+
 const restaurantName =
     params.get("restaurant_name") || "Your Restaurant";
 
@@ -13,6 +14,10 @@ const API_BASE_URL = (
     params.get("api") ||
     "https://restaurant-ai-waiter-api.onrender.com"
 ).replace(/\/+$/, "");
+
+const SESSION_STORAGE_KEY =
+    `servio_chat_session_${restaurantId}`;
+
 
 // ==========================================
 // ELEMENTS
@@ -57,14 +62,15 @@ const connectionError =
 const footerNote =
     document.getElementById("footerNote");
 
+
 // ==========================================
 // STATE
 // ==========================================
 
-let sessionReady = false;
 let sessionId = null;
+
 let sendingMessage = false;
-let initializingSession = false;
+
 
 // ==========================================
 // RESTAURANT INFORMATION
@@ -73,6 +79,7 @@ let initializingSession = false;
 document.title = restaurantName + " | Servio AI";
 
 restaurantNameElement.textContent = restaurantName;
+
 sidebarRestaurantName.textContent = restaurantName;
 
 welcomeSender.textContent = restaurantName + " AI";
@@ -265,8 +272,6 @@ function hideTyping() {
 
 function enableChat() {
 
-    sessionReady = true;
-
     messageInput.disabled = false;
 
     sendBtn.disabled = false;
@@ -281,8 +286,6 @@ function enableChat() {
 
 function disableChat() {
 
-    sessionReady = false;
-
     messageInput.disabled = true;
 
     sendBtn.disabled = true;
@@ -290,14 +293,10 @@ function disableChat() {
 
 
 // ==========================================
-// INITIALIZE CHAT SESSION
+// INITIALIZE CHAT
 // ==========================================
 
-async function initializeSession() {
-
-    if (initializingSession) {
-        return false;
-    }
+function initializeChat() {
 
     if (!restaurantId) {
 
@@ -312,104 +311,40 @@ async function initializeSession() {
 
         disableChat();
 
-        return false;
+        return;
     }
 
-    initializingSession = true;
-
-    disableChat();
+    // ----------------------------------
+    // Restore saved session
+    // ----------------------------------
 
     try {
 
-        setStatus("Creating chat session...");
-
-        footerNote.textContent =
-            "Connecting to " + restaurantName + "...";
-
-        const response = await fetch(
-            `${API_BASE_URL}/api/chat/${encodeURIComponent(restaurantId)}/session`,
-            {
-                method: "POST",
-
-                headers: {
-                    "Accept": "application/json"
-                },
-
-                // IMPORTANT:
-                // This allows the browser to receive and send cookies.
-                credentials: "include"
-            }
+        sessionId = localStorage.getItem(
+            SESSION_STORAGE_KEY
         );
-
-        const data = await readResponse(response);
-
-        if (!response.ok) {
-
-            throw new Error(
-                getErrorMessage(
-                    data,
-                    "Could not create chat session."
-                )
-            );
-        }
-
-        // Backend should return:
-        // {
-        //   success: true,
-        //   restaurant_id: "...",
-        //   session_id: "...",
-        //   message: "Chat session is ready."
-        // }
-
-        if (
-            !data ||
-            typeof data !== "object" ||
-            data.success !== true ||
-            !data.session_id
-        ) {
-
-            throw new Error(
-                "Invalid session response from server."
-            );
-        }
-
-        // Keep session ID for frontend status.
-        // Actual authentication/memory uses HttpOnly cookie.
-        sessionId = data.session_id;
-
-        enableChat();
-
-        hideError();
-
-        setStatus("Online", true);
-
-        messageInput.focus();
-
-        return true;
 
     } catch (error) {
 
-        console.error("Session error:", error);
-
-        disableChat();
-
-        setStatus("Connection failed");
-
-        showError(
-            error.message ||
-            "Unable to connect to the restaurant."
+        console.error(
+            "LocalStorage error:",
+            error
         );
 
-        footerNote.textContent =
-            "Could not connect. Please refresh the page to try again.";
-
-        return false;
-
-    } finally {
-
-        initializingSession = false;
-
+        sessionId = null;
     }
+
+    // ----------------------------------
+    // Enable chat immediately
+    // ----------------------------------
+
+    enableChat();
+
+    hideError();
+
+    setStatus("Online", true);
+
+    messageInput.focus();
 }
 
 
@@ -426,12 +361,14 @@ async function requestChat(question) {
 
             headers: {
                 "Content-Type": "application/json",
-                "Accept": "application/json"
-            },
+                "Accept": "application/json",
 
-            // IMPORTANT:
-            // Send the same session cookie with every message.
-            credentials: "include",
+                ...(sessionId
+                    ? {
+                        "X-Chat-Session-ID": sessionId
+                    }
+                    : {})
+            },
 
             body: JSON.stringify({
                 question: question
@@ -449,6 +386,45 @@ async function requestChat(question) {
 
 
 // ==========================================
+// SAVE SESSION ID
+// ==========================================
+
+function saveSessionId(newSessionId) {
+
+    if (
+        typeof newSessionId !== "string" ||
+        !/^[a-f0-9]{32}$/.test(newSessionId)
+    ) {
+
+        throw new Error(
+            "Invalid session ID received from server."
+        );
+    }
+
+    sessionId = newSessionId;
+
+    try {
+
+        localStorage.setItem(
+            SESSION_STORAGE_KEY,
+            sessionId
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Could not save session:",
+            error
+        );
+
+        throw new Error(
+            "Could not save chat session in this browser."
+        );
+    }
+}
+
+
+// ==========================================
 // SEND MESSAGE
 // ==========================================
 
@@ -460,10 +436,10 @@ async function sendMessage() {
         return;
     }
 
-    if (!sessionReady) {
+    if (!restaurantId) {
 
         showError(
-            "Chat session is not ready. Please wait."
+            "Restaurant ID is missing."
         );
 
         return;
@@ -487,37 +463,14 @@ async function sendMessage() {
 
     try {
 
-        let result = await requestChat(question);
-
         // ----------------------------------
-        // SESSION EXPIRED OR COOKIE MISSING
+        // Send message to backend
         // ----------------------------------
 
-        if (result.response.status === 401) {
-
-            setStatus("Reconnecting...");
-
-            footerNote.textContent =
-                "Your chat session needs to be refreshed...";
-
-            sessionReady = false;
-
-            const newSessionReady =
-                await initializeSession();
-
-            if (!newSessionReady) {
-
-                throw new Error(
-                    "Your chat session could not be restored. Please refresh the page."
-                );
-            }
-
-            // Retry the same message once.
-            result = await requestChat(question);
-        }
+        const result = await requestChat(question);
 
         // ----------------------------------
-        // HANDLE API ERROR
+        // Handle API errors
         // ----------------------------------
 
         if (!result.response.ok) {
@@ -531,28 +484,46 @@ async function sendMessage() {
         }
 
         // ----------------------------------
-        // GET AI ANSWER
+        // Validate response
         // ----------------------------------
 
-        let answer = "";
-
-        if (typeof result.data === "string") {
-
-            answer = result.data;
-
-        } else if (
-            result.data &&
-            typeof result.data === "object"
+        if (
+            !result.data ||
+            typeof result.data !== "object" ||
+            result.data.success !== true
         ) {
 
-            answer =
-                result.data.answer ||
-                result.data.response ||
-                result.data.reply ||
-                result.data.message ||
-                result.data.result ||
-                "";
+            throw new Error(
+                "Invalid response received from server."
+            );
         }
+
+        // ----------------------------------
+        // Save session ID
+        // ----------------------------------
+
+        if (!result.data.session_id) {
+
+            throw new Error(
+                "Session ID missing from server response."
+            );
+        }
+
+        saveSessionId(
+            result.data.session_id
+        );
+
+        // ----------------------------------
+        // Get AI answer
+        // ----------------------------------
+
+        let answer =
+            result.data.answer ||
+            result.data.response ||
+            result.data.reply ||
+            result.data.message ||
+            result.data.result ||
+            "";
 
         if (!answer) {
 
@@ -563,6 +534,8 @@ async function sendMessage() {
         addMessage("bot", String(answer));
 
         setStatus("Online", true);
+
+        hideError();
 
     } catch (error) {
 
@@ -578,26 +551,31 @@ async function sendMessage() {
             "Failed to send message."
         );
 
+        setStatus("Connection failed");
+
     } finally {
+
         hideTyping();
 
         sendingMessage = false;
 
-        messageInput.disabled = !sessionReady;
-        sendBtn.disabled = !sessionReady;
+        messageInput.disabled = false;
 
-        if (sessionReady) {
-            messageInput.focus();
-        }
+        sendBtn.disabled = false;
+
+        messageInput.focus();
 
         scrollToBottom();
     }
 }
+
+
 // ==========================================
 // EVENT LISTENERS
 // ==========================================
 
 sendBtn.addEventListener("click", sendMessage);
+
 
 messageInput.addEventListener("keydown", function (event) {
 
@@ -628,4 +606,4 @@ messageInput.addEventListener("input", function () {
 // START CHAT
 // ==========================================
 
-initializeSession();
+initializeChat();
