@@ -1,9 +1,5 @@
-import {
-    auth,
-    db,
-    onAuthStateChanged,
-    logout
-} from "../assets/auth.js";
+
+import { auth, db, onAuthStateChanged, logout } from "../assets/auth.js";
 
 import {
     doc,
@@ -12,177 +8,46 @@ import {
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
-import {
-    API_BASE_URL
-} from "../assets/firebase-config.js";
-
+import { API_BASE_URL } from "../assets/firebase-config.js";
 
 const $ = id => document.getElementById(id);
 
-
-// ========================================
-// GLOBAL VARIABLES
-// ========================================
-
 let user = null;
 let restaurantId = null;
-
 let menuCount = 0;
 let menuLimit = 5;
-
 let currentPlan = "standard";
-
 let restaurantData = {};
-
 let restaurants = [];
-let menus = [];
-
-// Complete API JSON responses
-let restaurantResponses = [];
-
 
 const plans = {
-
     basic: {
         name: "Basic",
         limit: 1,
         price: null
     },
-
     standard: {
         name: "Standard",
         limit: 5,
         price: "€70"
     },
-
     premium: {
         name: "Premium",
         limit: 10,
         price: null
     }
-
 };
 
 
 // ========================================
-// HELPER FUNCTIONS
-// ========================================
-
-function escapeHTML(value) {
-
-    return String(value ?? "").replace(/[&<>"']/g, char => ({
-
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#39;"
-
-    })[char]);
-
-}
-
-
-function getRestaurantId(response) {
-
-    return (
-        response?.restaurant?.restaurant_id ||
-        response?.restaurant_id ||
-        response?.restaurantId ||
-        response?.id ||
-        null
-    );
-
-}
-
-
-function getRestaurantName(response) {
-
-    return (
-        response?.restaurant?.restaurant_name ||
-        response?.restaurant_name ||
-        response?.restaurantName ||
-        "Restaurant"
-    );
-
-}
-
-
-// ========================================
-// CUSTOMER CHAT URL
-// ========================================
-
-function getRestaurantChatURL(response) {
-
-    const id = getRestaurantId(response);
-
-    const name = getRestaurantName(response);
-
-    const chatURL = new URL(
-        "../chat/chat.html",
-        window.location.href
-    );
-
-    chatURL.searchParams.set(
-        "restaurant_id",
-        id
-    );
-
-    chatURL.searchParams.set(
-        "restaurant_name",
-        name
-    );
-
-    return chatURL.href;
-
-}
-
-
-// ========================================
-// CONVERT API JSON TO RESTAURANT RECORD
-// ========================================
-
-function normalizeRestaurant(response) {
-
-    return {
-
-        restaurantName: getRestaurantName(response),
-
-        restaurantId: getRestaurantId(response),
-
-        fileName:
-            response.file_name ||
-            response.fileName ||
-            "Restaurant menu.pdf",
-
-        status: response.success
-            ? "Processed"
-            : "Failed",
-
-        uploadedAt:
-            response.uploaded_at ||
-            response.uploadedAt ||
-            null,
-
-        apiResponse: response
-
-    };
-
-}
-
-
-// ========================================
-// AUTHENTICATION
+// AUTHENTICATION AND DASHBOARD INITIALIZE
 // ========================================
 
 onAuthStateChanged(auth, async currentUser => {
 
     if (!currentUser) {
-
         location.replace("../auth/login.html");
-
         return;
-
     }
 
     user = currentUser;
@@ -192,7 +57,6 @@ onAuthStateChanged(auth, async currentUser => {
         await loadDashboard();
 
         $("dashboardApp").classList.remove("d-none");
-
         $("authLoading").classList.add("d-none");
 
     } catch (error) {
@@ -200,26 +64,17 @@ onAuthStateChanged(auth, async currentUser => {
         console.error("Dashboard loading error:", error);
 
         $("authLoading").innerHTML = `
-            <div class="text-center p-4">
-
-                <h5 class="text-danger">
-                    Dashboard Load Failed
-                </h5>
-
-                <p class="text-secondary">
-                    ${escapeHTML(error.message)}
-                </p>
-
-            </div>
+            <p class="text-danger">
+                Could not load account. Check Firestore configuration and security rules.
+            </p>
         `;
-
     }
 
 });
 
 
 // ========================================
-// LOAD DASHBOARD
+// LOAD DASHBOARD DATA FROM FIRESTORE
 // ========================================
 
 async function loadDashboard() {
@@ -232,96 +87,49 @@ async function loadDashboard() {
         ? snapshot.data()
         : {};
 
+    restaurantId = restaurantData.restaurantId || null;
 
-    restaurantId =
-        restaurantData.restaurantId || null;
+    currentPlan = restaurantData.plan || "standard";
 
-
-    currentPlan =
-        restaurantData.plan || "standard";
-
-
-    const selectedPlan =
-        plans[currentPlan] || plans.standard;
-
+    const selectedPlan = plans[currentPlan] || plans.standard;
 
     menuLimit = selectedPlan.limit;
 
-
-    // Load complete API JSON responses
-
-    restaurantResponses = Array.isArray(
-        restaurantData.restaurantResponses
-    )
-        ? restaurantData.restaurantResponses
-        : [];
-
-
-    // Load existing restaurant data
-
-    restaurants = Array.isArray(
-        restaurantData.restaurants
-    )
-        ? restaurantData.restaurants
-        : [];
-
-
-    menus = Array.isArray(
-        restaurantData.menus
-    )
+    const menus = Array.isArray(restaurantData.menus)
         ? restaurantData.menus
         : [];
 
+    menuCount = menus.length;
 
-    // Build restaurant list from JSON responses
+    // Load multiple restaurants
+    restaurants = Array.isArray(restaurantData.restaurants)
+        ? restaurantData.restaurants
+        : [];
 
-    if (restaurantResponses.length > 0) {
-
-        restaurants = restaurantResponses
-            .map(normalizeRestaurant)
-            .filter(item => item.restaurantId);
-
-        menus = [...restaurants];
-
-    } else if (restaurants.length === 0 && restaurantId) {
-
-        // Legacy data support
+    // Legacy data support:
+    // If an old account has restaurantId but no restaurants array,
+    // show its existing restaurant QR.
+    if (restaurants.length === 0 && restaurantId) {
 
         restaurants = [{
-
-            restaurantName:
-                restaurantData.restaurantName || "Restaurant",
-
+            restaurantName: restaurantData.restaurantName || "Restaurant",
             restaurantId: restaurantId,
-
-            fileName: "Existing menu",
-
+            fileName: menus.length
+                ? menus[menus.length - 1].fileName
+                : "Existing menu",
             status: "Processed",
-
-            uploadedAt: null
-
+            uploadedAt: menus.length
+                ? menus[menus.length - 1].uploadedAt
+                : null
         }];
 
     }
-
-
-    menuCount = Math.max(
-        restaurantResponses.length,
-        menus.length,
-        restaurants.length
-    );
-
-
-    // =================================
-    // USER INFORMATION
-    // =================================
 
     const displayName =
         user.displayName ||
         restaurantData.name ||
         user.email ||
         "Restaurant owner";
-
 
     $("profileName").textContent = displayName;
 
@@ -330,11 +138,6 @@ async function loadDashboard() {
 
     $("welcomeName").textContent =
         displayName.split(" ")[0];
-
-
-    // =================================
-    // RESTAURANT PROFILE
-    // =================================
 
     $("restaurantName").value =
         restaurantData.restaurantName || "";
@@ -354,19 +157,14 @@ async function loadDashboard() {
     $("restaurantDescription").value =
         restaurantData.description || "";
 
-
     loadAISettings();
 
     updateUsage();
-
     updatePlan();
-
     updateLanguages();
-
     updateSetupProgress();
 
     renderMenus(menus);
-
     renderRestaurantQRCodes();
 
 }
@@ -378,31 +176,24 @@ async function loadDashboard() {
 
 function loadAISettings() {
 
-    const settings =
-        restaurantData.aiSettings || {};
-
+    const settings = restaurantData.aiSettings || {};
 
     $("welcomeMessage").value =
         settings.welcomeMessage ||
         "Ciao! Welcome to our restaurant. How can I help you today?";
 
-
     $("assistantTone").value =
         settings.assistantTone ||
         "Friendly and welcoming";
 
-
     $("allergenNotice").checked =
         settings.allergenNotice !== false;
-
 
     $("langEnglish").checked =
         settings.english !== false;
 
-
     $("langItalian").checked =
         settings.italian !== false;
-
 
     $("langBangla").checked =
         settings.bangla !== false;
@@ -416,47 +207,34 @@ function loadAISettings() {
 
 function updateUsage() {
 
-    const used =
-        Math.min(menuCount, menuLimit);
+    const used = Math.min(menuCount, menuLimit);
 
+    const remaining = Math.max(0, menuLimit - used);
 
-    const remaining =
-        Math.max(0, menuLimit - used);
-
-
-    const percentage =
-        menuLimit > 0
-            ? Math.min(100, (used / menuLimit) * 100)
-            : 0;
-
+    const percentage = menuLimit > 0
+        ? Math.min(100, (used / menuLimit) * 100)
+        : 0;
 
     $("menuStat").textContent =
         `${used} / ${menuLimit}`;
 
-
     $("menuUsageHeader").textContent =
         `${used} / ${menuLimit} uploads used`;
-
 
     $("usageText").textContent =
         `${used} of ${menuLimit} used`;
 
-
     $("remainingText").textContent =
         `${remaining} remaining`;
-
 
     $("usageBar").style.width =
         percentage + "%";
 
-
     $("billingUsage").textContent =
         `${used} of ${menuLimit} menu uploads used`;
 
-
     $("billingBar").style.width =
         percentage + "%";
-
 
     $("planLabel").textContent =
         `${currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)} package`;
@@ -470,39 +248,29 @@ function updateUsage() {
 
 function updatePlan() {
 
-    const plan =
-        plans[currentPlan] || plans.standard;
-
+    const plan = plans[currentPlan] || plans.standard;
 
     $("overviewPlan").textContent =
         plan.name.toUpperCase();
 
-
     $("billingPlanName").textContent =
         plan.name;
 
-
     $("billingDescription").textContent =
         `Up to ${plan.limit} menu uploads.`;
-
 
     if (plan.price) {
 
         $("overviewPrice").innerHTML =
             `${plan.price} <small class="fs-6 text-secondary">paid once</small>`;
 
-
         $("billingPrice").innerHTML =
             `${plan.price} <small class="fs-6 text-secondary">one-time payment</small>`;
 
     } else {
 
-        $("overviewPrice").textContent =
-            "Price not configured";
-
-
-        $("billingPrice").textContent =
-            "Price not configured";
+        $("overviewPrice").textContent = "Price not configured";
+        $("billingPrice").textContent = "Price not configured";
 
     }
 
@@ -517,30 +285,14 @@ function updateLanguages() {
 
     const languages = [];
 
+    if ($("langEnglish").checked) languages.push("EN");
+    if ($("langItalian").checked) languages.push("IT");
+    if ($("langBangla").checked) languages.push("বাংলা");
 
-    if ($("langEnglish").checked) {
-        languages.push("EN");
-    }
-
-
-    if ($("langItalian").checked) {
-        languages.push("IT");
-    }
-
-
-    if ($("langBangla").checked) {
-        languages.push("বাংলা");
-    }
-
-
-    $("languageCount").textContent =
-        languages.length;
-
+    $("languageCount").textContent = languages.length;
 
     $("languageSummary").textContent =
-        languages.length
-            ? languages.join(" · ")
-            : "No languages selected";
+        languages.length ? languages.join(" · ") : "No languages selected";
 
 }
 
@@ -551,179 +303,176 @@ function updateLanguages() {
 
 function updateSetupProgress() {
 
-    const profileComplete = Boolean(
-        restaurantData.restaurantName &&
-        restaurantData.address
-    );
+    const profileComplete =
+        Boolean(
+            restaurantData.restaurantName &&
+            restaurantData.address
+        );
 
-
-    const menuComplete =
-        menuCount > 0;
-
+    const menuComplete = menuCount > 0;
 
     const qrComplete =
-        restaurants.length > 0;
+        restaurants.length > 0 || Boolean(restaurantId);
 
-
-    const completed =
-        1 +
+    const completed = 1 +
         Number(profileComplete) +
         Number(menuComplete) +
         Number(qrComplete);
 
+    const percentage = (completed / 4) * 100;
 
     $("setupProgress").style.width =
-        (completed / 4) * 100 + "%";
-
+        percentage + "%";
 
     $("setupAccount").textContent =
         "✓ Account created";
 
-
     $("setupProfile").textContent =
-        profileComplete
-            ? "✓ Restaurant details"
-            : "○ Restaurant details";
-
+        profileComplete ? "✓ Restaurant details" : "○ Restaurant details";
 
     $("profileSetupStatus").textContent =
         profileComplete ? "Done" : "Pending";
 
-
     $("setupMenu").textContent =
-        menuComplete
-            ? "✓ Menu uploaded"
-            : "○ Menu uploaded";
-
+        menuComplete ? "✓ Menu uploaded" : "○ Menu uploaded";
 
     $("menuSetupStatus").textContent =
         menuComplete ? "Done" : "Pending";
 
-
     $("setupQr").textContent =
-        qrComplete
-            ? "✓ QR code generated"
-            : "○ QR code generated";
+        qrComplete ? "✓ QR code generated" : "○ QR code generated";
 
 }
 
 
 // ========================================
-// RENDER MENUS
+// RENDER MENU LIST
 // ========================================
 
-function renderMenus(menuList = []) {
+function renderMenus(menus = []) {
 
-    const container =
-        $("menusList");
-
+    const container = $("menusList");
 
     container.innerHTML = "";
 
-
-    if (!menuList.length) {
+    if (!menus.length) {
 
         container.innerHTML = `
-            <p class="text-secondary small">
-                No restaurants uploaded yet.
+            <p class="text-secondary small mb-0">
+                No menus uploaded yet.
             </p>
         `;
 
         return;
-
     }
 
+    menus.forEach(menu => {
 
-    menuList.forEach((menu, index) => {
-
-        const row =
-            document.createElement("div");
-
+        const row = document.createElement("div");
 
         row.className = "file-row";
 
-
-        const icon =
-            document.createElement("i");
-
+        const icon = document.createElement("i");
 
         icon.className =
             "bi bi-filetype-pdf text-danger fs-3";
 
+        const info = document.createElement("div");
 
-        const info =
-            document.createElement("div");
+        info.className = "flex-grow-1";
 
+        const restaurantTitle = document.createElement("b");
 
-        info.className =
-            "flex-grow-1";
+        restaurantTitle.className = "d-block";
 
-
-        const title =
-            document.createElement("b");
-
-
-        title.className =
-            "d-block";
-
-
-        title.textContent =
+        restaurantTitle.textContent =
             menu.restaurantName || "Restaurant";
 
+        const title = document.createElement("span");
 
-        const filename =
-            document.createElement("span");
+        title.className = "d-block";
 
-
-        filename.className =
-            "d-block";
-
-
-        filename.textContent =
+        title.textContent =
             menu.fileName || "Restaurant menu.pdf";
 
+        const date = document.createElement("small");
 
-        const id =
-            document.createElement("small");
+        if (menu.uploadedAt) {
 
+            const uploadDate = new Date(menu.uploadedAt);
 
-        id.className =
-            "d-block text-secondary";
+            date.textContent =
+                "Uploaded " + uploadDate.toLocaleString();
 
+        } else {
 
-        id.textContent =
-            "ID: " + (menu.restaurantId || "N/A");
+            date.textContent = "Recently uploaded";
 
+        }
 
-        const status =
-            document.createElement("span");
+        const status = document.createElement("span");
 
-
-        status.className =
-            "badge text-bg-success";
-
+        status.className = "badge text-bg-success";
 
         status.textContent =
             menu.status || "Processed";
 
-
+        info.appendChild(restaurantTitle);
         info.appendChild(title);
-
-        info.appendChild(filename);
-
-        info.appendChild(id);
-
+        info.appendChild(date);
 
         row.appendChild(icon);
-
         row.appendChild(info);
-
         row.appendChild(status);
-
 
         container.appendChild(row);
 
     });
+
+}
+
+
+// ========================================
+// GENERATE CHAT URL
+// ========================================
+
+function getRestaurantChatURL(restaurant) {
+
+    const chatURL = new URL(
+        "../chat/chat.html",
+        window.location.href
+    );
+
+    chatURL.searchParams.set(
+        "restaurant_id",
+        restaurant.restaurantId
+    );
+
+    chatURL.searchParams.set(
+        "restaurant_name",
+        restaurant.restaurantName || "Restaurant"
+    );
+
+    return chatURL.href;
+
+}
+
+
+// ========================================
+// ESCAPE HTML
+// ========================================
+
+function escapeHTML(value) {
+
+    return String(value ?? "").replace(/[&<>"']/g, char => ({
+
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+
+    })[char]);
 
 }
 
@@ -734,87 +483,46 @@ function renderMenus(menuList = []) {
 
 function renderRestaurantQRCodes() {
 
-    const container =
-        $("restaurantsQrList");
-
+    const container = $("restaurantsQrList");
 
     container.innerHTML = "";
 
+    if (!restaurants.length) {
 
-    if (!restaurantResponses.length) {
+        container.innerHTML = `
+            <div class="panel text-center">
 
-        // Legacy restaurants support
+                <i class="bi bi-qr-code display-3 text-secondary"></i>
 
-        if (!restaurants.length) {
+                <p class="text-secondary mt-3 mb-0">
+                    Upload a restaurant menu to generate its QR code.
+                </p>
 
-            container.innerHTML = `
-                <div class="panel text-center">
+            </div>
+        `;
 
-                    <i class="bi bi-qr-code display-3 text-secondary"></i>
-
-                    <p class="text-secondary mt-3">
-                        Upload a restaurant menu to generate its QR code.
-                    </p>
-
-                </div>
-            `;
-
-            return;
-
-        }
-
+        return;
     }
 
+    restaurants.forEach((restaurant, index) => {
 
-    const records = restaurantResponses.length
-        ? restaurantResponses
-        : restaurants;
+        if (!restaurant.restaurantId) return;
 
-
-    records.forEach((record, index) => {
-
-        const response =
-            record.apiResponse || record;
-
-
-        const id =
-            getRestaurantId(response) ||
-            record.restaurantId;
-
-
-        const name =
-            getRestaurantName(response) ||
-            record.restaurantName;
-
-
-        if (!id) return;
-
+        const restaurantName =
+            restaurant.restaurantName || "Restaurant";
 
         const chatURL =
-            getRestaurantChatURL({
+            getRestaurantChatURL(restaurant);
 
-                ...response,
+        const safeName =
+            escapeHTML(restaurantName);
 
-                restaurant: {
+        const safeId =
+            escapeHTML(restaurant.restaurantId);
 
-                    ...(response.restaurant || {}),
+        const card = document.createElement("div");
 
-                    restaurant_id: id,
-
-                    restaurant_name: name
-
-                }
-
-            });
-
-
-        const card =
-            document.createElement("div");
-
-
-        card.className =
-            "panel mb-3";
-
+        card.className = "panel mb-3";
 
         card.innerHTML = `
 
@@ -823,7 +531,7 @@ function renderRestaurantQRCodes() {
                 <div class="col-md-4 text-center">
 
                     <h6 class="fw-bold mb-3">
-                        ${escapeHTML(name)}
+                        ${safeName}
                     </h6>
 
                     <div
@@ -846,26 +554,23 @@ function renderRestaurantQRCodes() {
 
                 </div>
 
-
                 <div class="col-md-8">
 
-                    <h5 class="fw-bold">
-                        ${escapeHTML(name)}
+                    <h5 class="fw-bold mb-2">
+                        ${safeName}
                     </h5>
 
-                    <p class="text-secondary small mb-1">
+                    <p class="text-secondary small mb-2">
                         Restaurant ID
                     </p>
 
-                    <code class="d-block mb-3">
-                        ${escapeHTML(id)}
+                    <code class="small d-block mb-3">
+                        ${safeId}
                     </code>
-
 
                     <label class="form-label small fw-semibold">
                         Customer Chat URL
                     </label>
-
 
                     <div class="input-group mb-3">
 
@@ -886,7 +591,6 @@ function renderRestaurantQRCodes() {
 
                     </div>
 
-
                     <a
                         href="${escapeHTML(chatURL)}"
                         target="_blank"
@@ -897,22 +601,9 @@ function renderRestaurantQRCodes() {
                         Preview customer chat
                     </a>
 
-
                     <span class="badge text-bg-success ms-2">
-                        Processed
+                        ${escapeHTML(restaurant.status || "Processed")}
                     </span>
-
-
-                    <details class="mt-3">
-
-                        <summary class="small fw-semibold text-primary">
-                            View API JSON response
-                        </summary>
-
-                        <pre class="bg-light p-3 mt-2 rounded small"
-                            style="white-space:pre-wrap;word-break:break-word;">${escapeHTML(JSON.stringify(response, null, 2))}</pre>
-
-                    </details>
 
                 </div>
 
@@ -920,13 +611,10 @@ function renderRestaurantQRCodes() {
 
         `;
 
-
         container.appendChild(card);
-
 
         const qrContainer =
             card.querySelector(`#restaurant-qr-${index}`);
-
 
         if (window.QRCode) {
 
@@ -963,22 +651,15 @@ function renderRestaurantQRCodes() {
 
 function showView(view) {
 
-    const section =
-        $("view-" + view);
-
+    const section = $("view-" + view);
 
     if (!section) return;
 
-
     document.querySelectorAll(".view-section").forEach(item => {
-
         item.classList.add("d-none");
-
     });
 
-
     section.classList.remove("d-none");
-
 
     document.querySelectorAll(".side-link[data-view]").forEach(link => {
 
@@ -989,76 +670,52 @@ function showView(view) {
 
     });
 
-
     const labels = {
 
         overview: "Overview",
-
         restaurant: "Restaurant profile",
-
         menus: "Menu manager",
-
         qr: "Restaurant QR codes",
-
         conversations: "Conversations",
-
         settings: "AI waiter settings",
-
         billing: "Plan & payments"
 
     };
 
-
     $("pageTitle").textContent =
         labels[view] || "Overview";
-
 
     $("sidebar").classList.remove("open");
 
 }
 
-
 document.addEventListener("click", event => {
 
-    const link =
-        event.target.closest("[data-view]");
-
+    const link = event.target.closest("[data-view]");
 
     if (!link) return;
 
-
-    const view =
-        link.dataset.view;
-
+    const view = link.dataset.view;
 
     if (!$("view-" + view)) return;
 
-
     event.preventDefault();
 
-
     showView(view);
-
 
     history.replaceState(null, "", "#" + view);
 
 });
 
-
 if (location.hash) {
 
-    const initialView =
-        location.hash.substring(1);
-
+    const initialView = location.hash.substring(1);
 
     if ($("view-" + initialView)) {
-
         showView(initialView);
-
     }
 
 }
-
 
 $("menuToggle").addEventListener("click", () => {
 
@@ -1081,26 +738,17 @@ async function signOutUser() {
 
     } catch (error) {
 
-        alert(
-            "Could not log out.\n" +
-            error.message
-        );
+        console.error("Logout error:", error);
+
+        alert("Could not log out. Try again.");
 
     }
 
 }
 
+$("logoutBtn").addEventListener("click", signOutUser);
 
-$("logoutBtn").addEventListener(
-    "click",
-    signOutUser
-);
-
-
-$("logoutMenu").addEventListener(
-    "click",
-    signOutUser
-);
+$("logoutMenu").addEventListener("click", signOutUser);
 
 
 // ========================================
@@ -1111,40 +759,29 @@ $("restaurantForm").addEventListener("submit", async event => {
 
     event.preventDefault();
 
-
-    const button =
-        event.submitter;
-
+    const button = event.submitter;
 
     button.disabled = true;
-
 
     try {
 
         const profile = {
 
-            restaurantName:
-                $("restaurantName").value.trim(),
+            restaurantName: $("restaurantName").value.trim(),
 
-            restaurantEmail:
-                $("restaurantEmail").value.trim(),
+            restaurantEmail: $("restaurantEmail").value.trim(),
 
-            phone:
-                $("restaurantPhone").value.trim(),
+            phone: $("restaurantPhone").value.trim(),
 
-            website:
-                $("restaurantWebsite").value.trim(),
+            website: $("restaurantWebsite").value.trim(),
 
-            address:
-                $("restaurantAddress").value.trim(),
+            address: $("restaurantAddress").value.trim(),
 
-            description:
-                $("restaurantDescription").value.trim(),
+            description: $("restaurantDescription").value.trim(),
 
             updatedAt: serverTimestamp()
 
         };
-
 
         await setDoc(
             doc(db, "users", user.uid),
@@ -1152,29 +789,20 @@ $("restaurantForm").addEventListener("submit", async event => {
             { merge: true }
         );
 
-
         restaurantData = {
-
             ...restaurantData,
-
             ...profile
-
         };
-
 
         updateSetupProgress();
 
-
-        alert(
-            "Restaurant profile saved successfully."
-        );
+        alert("Restaurant profile saved successfully.");
 
     } catch (error) {
 
-        alert(
-            "Could not save restaurant profile.\n\n" +
-            error.message
-        );
+        console.error("Profile save error:", error);
+
+        alert("Could not save restaurant profile. Check Firestore rules.");
 
     } finally {
 
@@ -1186,141 +814,70 @@ $("restaurantForm").addEventListener("submit", async event => {
 
 
 // ========================================
-// CHOOSE PDF
+// PDF UPLOAD
+// FASTAPI: POST /api/restaurants/upload
 // ========================================
 
 $("chooseMenu").addEventListener("click", () => {
-
-    const restaurantName =
-        $("uploadRestaurantName").value.trim();
-
-
-    if (!restaurantName) {
-
-        alert(
-            "Please enter the restaurant name first."
-        );
-
-
-        $("uploadRestaurantName").focus();
-
-        return;
-
-    }
-
 
     $("menuFile").click();
 
 });
 
 
-// ========================================
-// PDF UPLOAD
-// ========================================
-
 $("menuFile").addEventListener("change", async event => {
 
-    const file =
-        event.target.files[0];
-
+    const file = event.target.files[0];
 
     if (!file) return;
 
+    const feedback = $("uploadFeedback");
 
-    const feedback =
-        $("uploadFeedback");
-
-
-    const button =
-        $("chooseMenu");
-
-
-    let apiUploadSucceeded = false;
-
+    const button = $("chooseMenu");
 
     try {
 
+        // Restaurant name is entered separately for every upload.
         const restaurantName =
             $("uploadRestaurantName").value.trim();
 
-
-        // VALIDATE RESTAURANT NAME
-
         if (!restaurantName) {
 
-            throw new Error(
-                "Please enter restaurant name."
-            );
+            throw new Error("Please enter the restaurant name.");
 
         }
 
+        if (file.type !== "application/pdf") {
 
-        // VALIDATE PDF
-
-        if (
-            file.type !== "application/pdf" &&
-            !file.name.toLowerCase().endsWith(".pdf")
-        ) {
-
-            throw new Error(
-                "Please select a PDF file."
-            );
+            throw new Error("Please select a PDF file.");
 
         }
-
-
-        // VALIDATE SIZE
 
         if (file.size > 15 * 1024 * 1024) {
 
-            throw new Error(
-                "Maximum PDF size is 15 MB."
-            );
+            throw new Error("Maximum file size is 15 MB.");
 
         }
-
-
-        // VALIDATE PLAN
 
         if (menuCount >= menuLimit) {
 
-            throw new Error(
-                "Your package upload allowance has been reached."
-            );
+            throw new Error("Your package upload allowance has been reached.");
 
         }
 
-
         button.disabled = true;
-
 
         feedback.className =
             "small text-primary mt-3";
 
-
         feedback.textContent =
-            "Uploading PDF and creating vector store...";
+            "Uploading PDF and creating vectors. Please wait...";
 
+        const formData = new FormData();
 
-        // =================================
-        // SEND PDF TO API
-        // =================================
+        formData.append("restaurant_name", restaurantName);
 
-        const formData =
-            new FormData();
-
-
-        formData.append(
-            "restaurant_name",
-            restaurantName
-        );
-
-
-        formData.append(
-            "file",
-            file
-        );
-
+        formData.append("file", file);
 
         const response = await fetch(
             `${API_BASE_URL}/api/restaurants/upload`,
@@ -1330,13 +887,17 @@ $("menuFile").addEventListener("change", async event => {
             }
         );
 
+        const responseText = await response.text();
 
-        const responseText =
-            await response.text();
+        if (!response.ok) {
 
+            throw new Error(
+                `API Error ${response.status}: ${responseText}`
+            );
+
+        }
 
         let result;
-
 
         try {
 
@@ -1344,131 +905,74 @@ $("menuFile").addEventListener("change", async event => {
 
         } catch {
 
-            throw new Error(
-                "API returned invalid JSON:\n" + responseText
-            );
+            throw new Error("Backend returned an invalid JSON response.");
 
         }
-
-
-        // API ERROR
-
-        if (!response.ok || !result.success) {
-
-            throw new Error(
-                result.message ||
-                `API Error ${response.status}`
-            );
-
-        }
-
 
         const newRestaurantId =
-            getRestaurantId(result);
+            result?.restaurant?.restaurant_id ||
+            result?.restaurant_id ||
+            result?.restaurantId ||
+            result?.id ||
+            null;
 
-
-        if (!newRestaurantId) {
+        if (!result?.success || !newRestaurantId) {
 
             throw new Error(
-                "API success, but restaurant_id was not found."
+                result?.message || "Restaurant ID not found."
             );
 
         }
 
+        // New restaurant record
+        const restaurantRecord = {
 
-        // API SUCCESS
+            restaurantName: restaurantName,
 
-        apiUploadSucceeded = true;
+            restaurantId: newRestaurantId,
 
+            fileName: file.name,
 
-        // =================================
-        // SHOW API MESSAGE
-        // =================================
+            status: "Processed",
 
-        feedback.className =
-            "small text-success mt-3";
-
-
-        feedback.textContent =
-            result.message ||
-            "Restaurant menu uploaded successfully.";
-
-
-        // =================================
-        // SAVE COMPLETE API JSON
-        // =================================
-
-        const uploadedAt =
-            new Date().toISOString();
-
-
-        const completeResponse = {
-
-            ...result,
-
-            // Additional metadata
-
-            file_name: file.name,
-
-            uploaded_at: uploadedAt
+            uploadedAt: new Date().toISOString()
 
         };
 
+        // Save all restaurants
+        const updatedRestaurants = [
 
-        // Create updated JSON list
+            ...restaurants,
 
-        const updatedResponses = [
-
-            ...restaurantResponses,
-
-            completeResponse
+            restaurantRecord
 
         ];
 
+        // Save all uploaded menus
+        const updatedMenus = [
 
-        // Create restaurant list
+            ...(Array.isArray(restaurantData.menus)
+                ? restaurantData.menus
+                : []),
 
-        const updatedRestaurants =
-            updatedResponses
-                .map(normalizeRestaurant)
-                .filter(item => item.restaurantId);
+            restaurantRecord
 
-
-        // Create menu list
-
-        const updatedMenus =
-            [...updatedRestaurants];
-
-
-        // =================================
-        // SAVE TO FIREBASE
-        // =================================
+        ];
 
         const updateData = {
-
-            // Full API JSON list
-
-            restaurantResponses: updatedResponses,
-
-
-            // Normalized list for dashboard
 
             restaurants: updatedRestaurants,
 
             menus: updatedMenus,
 
-
-            // Keep profile restaurantName unchanged
-
+            // Keep latest ID for compatibility with existing data
             restaurantId: newRestaurantId,
 
-
-            menuUploadCount: updatedResponses.length,
+            menuUploadCount: updatedMenus.length,
 
             updatedAt: serverTimestamp()
 
         };
-
 
         await setDoc(
             doc(db, "users", user.uid),
@@ -1476,138 +980,48 @@ $("menuFile").addEventListener("change", async event => {
             { merge: true }
         );
 
+        // Update local state
+        restaurants = updatedRestaurants;
 
-        // =================================
-        // UPDATE LOCAL DATA
-        // =================================
-
-        restaurantResponses =
-            updatedResponses;
-
-
-        restaurants =
-            updatedRestaurants;
-
-
-        menus =
-            updatedMenus;
-
-
-        restaurantId =
-            newRestaurantId;
-
+        restaurantId = newRestaurantId;
 
         restaurantData = {
 
             ...restaurantData,
 
-            restaurantResponses: updatedResponses,
-
-            restaurants: updatedRestaurants,
-
-            menus: updatedMenus,
-
-            restaurantId: newRestaurantId,
-
-            menuUploadCount: updatedResponses.length
+            ...updateData
 
         };
 
+        menuCount = updatedMenus.length;
 
-        menuCount =
-            updatedResponses.length;
-
-
-        // =================================
-        // UPDATE DASHBOARD
-        // =================================
-
+        // Update dashboard
         updateUsage();
 
         updateSetupProgress();
 
-        renderMenus(menus);
+        renderMenus(updatedMenus);
 
         renderRestaurantQRCodes();
 
-
-        // =================================
-        // SUCCESS MESSAGE
-        // =================================
+        // Clear upload name after success
+        $("uploadRestaurantName").value = "";
 
         feedback.className =
             "small text-success mt-3";
 
-
         feedback.textContent =
-            result.message ||
-            "Restaurant menu uploaded successfully.";
-
-
-        $("uploadRestaurantName").value = "";
-
-
-        alert(
-
-            "UPLOAD SUCCESSFUL!\n\n" +
-
-            "Message: " + result.message +
-
-            "\nRestaurant: " + getRestaurantName(result) +
-
-            "\nRestaurant ID: " + newRestaurantId +
-
-            "\n\nFirebase JSON saved successfully." +
-
-            "\nQR Code generated successfully."
-
-        );
-
+            result.message || "Restaurant menu uploaded successfully.";
 
     } catch (error) {
 
-        console.error(
-            "UPLOAD ERROR:",
-            error
-        );
-
+        console.error("PDF upload error:", error);
 
         feedback.className =
             "small text-danger mt-3";
 
-
-        if (apiUploadSucceeded) {
-
-            feedback.textContent =
-                "Vector store created successfully, but Firebase save failed: " +
-                error.message;
-
-
-            alert(
-
-                "VECTOR STORE SUCCESSFUL\n\n" +
-
-                "But Firebase save failed.\n\n" +
-
-                error.message
-
-            );
-
-        } else {
-
-            feedback.textContent =
-                error.message;
-
-
-            alert(
-
-                "UPLOAD FAILED!\n\n" +
-
-                error.message
-
-            );
-
-        }
+        feedback.textContent =
+            error.message;
 
     } finally {
 
@@ -1628,13 +1042,9 @@ $("settingsForm").addEventListener("submit", async event => {
 
     event.preventDefault();
 
-
-    const button =
-        event.submitter;
-
+    const button = event.submitter;
 
     button.disabled = true;
-
 
     try {
 
@@ -1660,7 +1070,6 @@ $("settingsForm").addEventListener("submit", async event => {
 
         };
 
-
         await setDoc(
             doc(db, "users", user.uid),
             {
@@ -1670,24 +1079,17 @@ $("settingsForm").addEventListener("submit", async event => {
             { merge: true }
         );
 
-
-        restaurantData.aiSettings =
-            aiSettings;
-
+        restaurantData.aiSettings = aiSettings;
 
         updateLanguages();
 
-
-        alert(
-            "AI waiter settings saved successfully."
-        );
+        alert("AI waiter settings saved successfully.");
 
     } catch (error) {
 
-        alert(
-            "Could not save AI settings.\n\n" +
-            error.message
-        );
+        console.error("Settings save error:", error);
+
+        alert("Could not save AI settings. Check Firestore rules.");
 
     } finally {
 
@@ -1699,157 +1101,104 @@ $("settingsForm").addEventListener("submit", async event => {
 
 
 // ========================================
-// LANGUAGE COUNTER
+// UPDATE LANGUAGE COUNTER
 // ========================================
 
-[
-    "langEnglish",
-    "langItalian",
-    "langBangla"
+["langEnglish", "langItalian", "langBangla"].forEach(id => {
 
-].forEach(id => {
-
-    $(id).addEventListener(
-        "change",
-        updateLanguages
-    );
+    $(id).addEventListener("change", updateLanguages);
 
 });
 
 
 // ========================================
-// COPY AND DOWNLOAD QR
+// COPY AND DOWNLOAD RESTAURANT QR CODES
 // ========================================
 
 $("restaurantsQrList").addEventListener("click", async event => {
 
-    // =================================
-    // COPY CUSTOMER CHAT LINK
-    // =================================
-
+    // COPY CHAT URL
     const copyButton =
         event.target.closest(".copy-restaurant-link");
 
-
     if (copyButton) {
 
-        const index =
-            Number(copyButton.dataset.index);
+        const index = Number(copyButton.dataset.index);
 
+        const restaurant = restaurants[index];
 
-        const response =
-            restaurantResponses[index] ||
-            restaurants[index];
-
-
-        if (!response) return;
-
+        if (!restaurant) return;
 
         const chatURL =
-            getRestaurantChatURL(response);
-
+            getRestaurantChatURL(restaurant);
 
         try {
 
-            await navigator.clipboard.writeText(
-                chatURL
-            );
+            await navigator.clipboard.writeText(chatURL);
 
-
-            copyButton.textContent =
-                "Copied!";
-
+            copyButton.textContent = "Copied!";
 
             setTimeout(() => {
 
-                copyButton.textContent =
-                    "Copy";
+                copyButton.textContent = "Copy";
 
             }, 1500);
 
-        } catch {
+        } catch (error) {
 
-            alert(
-                "Copy failed. Please copy the URL manually."
-            );
+            console.error("Copy error:", error);
+
+            alert("Copy failed. Please copy the URL manually.");
 
         }
-
 
         return;
 
     }
 
 
-    // =================================
     // DOWNLOAD QR CODE
-    // =================================
-
     const downloadButton =
         event.target.closest(".download-restaurant-qr");
 
-
     if (downloadButton) {
 
-        const index =
-            Number(downloadButton.dataset.index);
+        const index = Number(downloadButton.dataset.index);
 
+        const restaurant = restaurants[index];
 
-        const response =
-            restaurantResponses[index] ||
-            restaurants[index];
-
-
-        if (!response) return;
-
+        if (!restaurant) return;
 
         const qrContainer =
             $(`restaurant-qr-${index}`);
 
-
         if (!qrContainer) return;
-
 
         const image =
             qrContainer.querySelector("img");
 
-
         const canvas =
             qrContainer.querySelector("canvas");
-
 
         const source =
             image?.src ||
             canvas?.toDataURL("image/png");
 
-
         if (!source) {
 
-            alert(
-                "QR code is not ready yet."
-            );
+            alert("QR code is not ready yet.");
 
             return;
 
         }
 
+        const link = document.createElement("a");
 
-        const name =
-            getRestaurantName(response);
-
-
-        const link =
-            document.createElement("a");
-
-
-        link.href =
-            source;
-
+        link.href = source;
 
         link.download =
-            name.replace(/[^a-z0-9]/gi, "-") +
-            "-QR.png";
-
+            `${(restaurant.restaurantName || "restaurant")
+                .replace(/[^a-z0-9]/gi, "-")}-QR.png`;
 
         link.click();
 
