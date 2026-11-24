@@ -137,7 +137,9 @@ function hideError() {
 
 function scrollToBottom() {
 
-    chatBody.scrollTop = chatBody.scrollHeight;
+    requestAnimationFrame(() => {
+        chatBody.scrollTop = chatBody.scrollHeight;
+    });
 }
 
 
@@ -314,9 +316,7 @@ function initializeChat() {
         return;
     }
 
-    // ----------------------------------
     // Restore saved session
-    // ----------------------------------
 
     try {
 
@@ -334,17 +334,13 @@ function initializeChat() {
         sessionId = null;
     }
 
-    // ----------------------------------
     // Enable chat immediately
-    // ----------------------------------
 
     enableChat();
 
     hideError();
 
     setStatus("Online", true);
-
-    messageInput.focus();
 }
 
 
@@ -463,15 +459,11 @@ async function sendMessage() {
 
     try {
 
-        // ----------------------------------
         // Send message to backend
-        // ----------------------------------
 
         const result = await requestChat(question);
 
-        // ----------------------------------
         // Handle API errors
-        // ----------------------------------
 
         if (!result.response.ok) {
 
@@ -483,9 +475,7 @@ async function sendMessage() {
             );
         }
 
-        // ----------------------------------
         // Validate response
-        // ----------------------------------
 
         if (
             !result.data ||
@@ -498,9 +488,7 @@ async function sendMessage() {
             );
         }
 
-        // ----------------------------------
         // Save session ID
-        // ----------------------------------
 
         if (!result.data.session_id) {
 
@@ -513,9 +501,7 @@ async function sendMessage() {
             result.data.session_id
         );
 
-        // ----------------------------------
         // Get AI answer
-        // ----------------------------------
 
         let answer =
             result.data.answer ||
@@ -563,9 +549,11 @@ async function sendMessage() {
 
         sendBtn.disabled = false;
 
-        messageInput.focus();
-
         scrollToBottom();
+
+        // Keep input ready for the next message.
+        // Do not force focus here: mobile keyboard should not reopen
+        // unexpectedly after a response.
     }
 }
 
@@ -597,9 +585,101 @@ messageInput.addEventListener("input", function () {
     this.style.height = "auto";
 
     this.style.height =
-        Math.min(this.scrollHeight, 120) + "px";
+        Math.min(this.scrollHeight, 110) + "px";
 
 });
+
+
+// ==========================================
+// MOBILE KEYBOARD VIEWPORT HANDLING
+// ==========================================
+
+(function setupMobileKeyboard() {
+
+    const app = document.querySelector(".app");
+
+    if (!app || !window.visualViewport) {
+        return;
+    }
+
+    const viewport = window.visualViewport;
+
+    let resizeFrame = null;
+
+    function updateViewport() {
+
+        if (window.innerWidth > 768) {
+
+            app.style.top = "";
+            app.style.height = "";
+
+            return;
+        }
+
+        if (resizeFrame) {
+            cancelAnimationFrame(resizeFrame);
+        }
+
+        resizeFrame = requestAnimationFrame(function () {
+
+            const visibleHeight = viewport.height;
+            const visibleTop = viewport.offsetTop;
+
+            // Adjust only the app viewport.
+            // Header remains at the top of this viewport.
+            // Footer stays at the bottom, above the keyboard.
+            app.style.top = visibleTop + "px";
+            app.style.height = visibleHeight + "px";
+
+            // Keep the latest chat visible after viewport changes.
+            chatBody.scrollTop = chatBody.scrollHeight;
+
+        });
+    }
+
+    // Keyboard open / close
+
+    viewport.addEventListener("resize", updateViewport);
+
+    // Browser viewport movement
+
+    viewport.addEventListener("scroll", updateViewport);
+
+    // Device orientation / window resize
+
+    window.addEventListener("resize", updateViewport);
+
+    window.addEventListener("orientationchange", function () {
+
+        setTimeout(updateViewport, 250);
+
+    });
+
+    // Input focus: wait for keyboard animation to finish.
+
+    messageInput.addEventListener("focus", function () {
+
+        setTimeout(updateViewport, 100);
+
+        setTimeout(updateViewport, 300);
+
+        setTimeout(updateViewport, 500);
+
+    });
+
+    // Input blur: restore full available viewport.
+
+    messageInput.addEventListener("blur", function () {
+
+        setTimeout(updateViewport, 150);
+
+    });
+
+    // Initial layout
+
+    updateViewport();
+
+})();
 
 
 // ==========================================
