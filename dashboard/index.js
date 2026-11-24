@@ -136,8 +136,6 @@ async function loadDashboard() {
     $("profileInitial").textContent =
         displayName.charAt(0).toUpperCase();
 
-    
-
     $("restaurantName").value =
         restaurantData.restaurantName || "";
 
